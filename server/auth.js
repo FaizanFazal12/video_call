@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const { betterAuth } = require('better-auth');
 const { mongodbAdapter } = require('better-auth/adapters/mongodb');
 const { toNodeHandler } = require('better-auth/node');
@@ -5,7 +7,9 @@ const { anonymous } = require('better-auth/plugins');
 const { MongoClient } = require('mongodb');
 const mongoose = require('mongoose');
 
-const MONGO_URI = 'mongodb://127.0.0.1:27017/video-call';
+// MongoDB connection string is provided via the MONGODB_URI environment variable
+// (see server/.env.example). Never commit real credentials to source control.
+const MONGO_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/videocall-mediasoup';
 
 // Connect Mongoose for the rest of the application
 mongoose.connect(MONGO_URI)
@@ -26,8 +30,8 @@ const auth = betterAuth({
   plugins: [
     anonymous()
   ],
-  baseURL: 'http://localhost:4000',
-  trustedOrigins: ['http://localhost:3000']
+  baseURL: process.env.BETTER_AUTH_URL || 'http://localhost:4000',
+  trustedOrigins: [process.env.CLIENT_ORIGIN || 'http://localhost:3000']
 });
 
 module.exports = { auth, toNodeHandler };

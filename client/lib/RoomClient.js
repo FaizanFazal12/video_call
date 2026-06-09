@@ -44,8 +44,8 @@ export class RoomClient {
       this.callbacks.onPeerMuteStatus?.({ peerId, kind, paused });
     });
 
-    this.socket.on('newProducer', ({ producerId, peerId, kind, appData, paused }) => {
-      this._consume(producerId, peerId, kind, { ...appData, paused }).catch((err) => {
+    this.socket.on('newProducer', ({ producerId, peerId, kind, appData, paused, displayName }) => {
+      this._consume(producerId, peerId, kind, { ...appData, paused }, displayName).catch((err) => {
         console.error('consume failed', err);
         this.callbacks.onError?.(err);
       });
@@ -66,8 +66,14 @@ export class RoomClient {
 
     this.socket.on('forceMuted', ({ kind }) => {
       const producer = this.producers.get(`webcam-${kind}`);
-      if (producer) {
+      if (producer && !producer.paused) {
         producer.pause();
+        // For video, also release the camera so the light turns off. The user
+        // re-acquires a fresh track when they choose to turn it back on.
+        if (kind === 'video') {
+          producer.track?.stop();
+          this._updateLocalVideoTrack(null);
+        }
         this.callbacks.onForceMuted?.({ kind, paused: true });
       }
     });
@@ -172,7 +178,7 @@ export class RoomClient {
 
     // Consume anyone already in the room
     for (const p of existingProducers) {
-      await this._consume(p.producerId, p.peerId, p.kind, p.appData);
+      await this._consume(p.producerId, p.peerId, p.kind, p.appData, p.displayName);
     }
   }
 
@@ -221,7 +227,7 @@ export class RoomClient {
     });
   }
 
-  async _consume(producerId, peerId, kind, appData) {
+  async _consume(producerId, peerId, kind, appData, displayName) {
     const data = await emitWithAck(this.socket, 'consume', {
       producerId,
       rtpCapabilities: this.device.rtpCapabilities,
@@ -238,13 +244,14 @@ export class RoomClient {
 
     const stream = new MediaStream([consumer.track]);
     const source = appData?.source || 'webcam';
-    this.consumers.set(consumer.id, { consumer, stream, peerId, kind, source });
+    this.consumers.set(consumer.id, { consumer, stream, peerId, kind, source, displayName });
 
     await emitWithAck(this.socket, 'resumeConsumer', { consumerId: consumer.id });
 
     this.callbacks.onRemoteStream?.({
       consumerId: consumer.id,
       peerId,
+      displayName,
       kind,
       source,
       stream,
