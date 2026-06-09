@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const http = require('http');
 const express = require('express');
 const cors = require('cors');
@@ -106,6 +108,7 @@ async function main() {
         const peer = await room.addPeer(peerId, socket, worker);
         peer.isHost = isHost;
         peer.userId = userId;
+        peer.displayName = session.user.name;
         joinedRoomId = roomId;
         socket.join(roomId);
 
@@ -115,6 +118,7 @@ async function main() {
             existingProducers.push({
               producerId: producer.id,
               peerId: p.id,
+              displayName: p.displayName,
               kind: producer.kind,
               appData: producer.appData,
               paused: producer.paused,
@@ -177,16 +181,12 @@ async function main() {
             break;
           }
         }
-        if (targetProducer) {
-          if (targetProducer.paused) {
-            await targetProducer.resume();
-            targetPeer.socket.emit('forceUnmuted', { kind });
-            io.to(joinedRoomId).emit('peerMuteStatus', { peerId: targetPeerId, kind, paused: false });
-          } else {
-            await targetProducer.pause();
-            targetPeer.socket.emit('forceMuted', { kind });
-            io.to(joinedRoomId).emit('peerMuteStatus', { peerId: targetPeerId, kind, paused: true });
-          }
+        // Host can only mute / turn a device OFF — never unmute or turn it back on.
+        // Re-enabling is the participant's own choice (privacy).
+        if (targetProducer && !targetProducer.paused) {
+          await targetProducer.pause();
+          targetPeer.socket.emit('forceMuted', { kind });
+          io.to(joinedRoomId).emit('peerMuteStatus', { peerId: targetPeerId, kind, paused: true });
         }
       }
       if (cb) cb({ ok: true });
@@ -260,6 +260,7 @@ async function main() {
         socket.to(joinedRoomId).emit('newProducer', {
           producerId: producer.id,
           peerId: peer.id,
+          displayName: peer.displayName,
           kind: producer.kind,
           appData: producer.appData,
           paused: producer.paused,
@@ -368,8 +369,10 @@ async function main() {
     socket.on('chatMessage', ({ text }, cb) => {
       try {
         if (!joinedRoomId) return cb?.({ error: 'not in room' });
+        const senderName = rooms.get(joinedRoomId)?.peers.get(peerId)?.displayName;
         socket.to(joinedRoomId).emit('chatMessage', {
           peerId,
+          name: senderName,
           text,
           timestamp: Date.now(),
         });
