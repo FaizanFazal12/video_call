@@ -2,7 +2,7 @@ const os = require('os');
 
 module.exports = {
   listenIp: '0.0.0.0',
-  listenPort: 4000,
+  listenPort: process.env.PORT || 4000,
   clientOrigin: process.env.CLIENT_ORIGIN || 'http://localhost:3000',
 
   mediasoup: {

@@ -299,12 +299,13 @@ export default function RoomPage() {
                  <VideoTile label="Your Screen" muted videoRef={localScreenRef} isScreen />
                )}
                {peerTiles.map((tile) => (
-                 <RemoteTile 
-                   key={tile.id} 
-                   tile={tile} 
+                 <RemoteTile
+                   key={tile.id}
+                   tile={tile}
                    isHost={isHost}
                    onKick={() => kick(tile.peerId)}
-                   onToggleMute={() => clientRef.current?.toggleMutePeer(tile.peerId, 'audio')}
+                   onMuteAudio={() => clientRef.current?.toggleMutePeer(tile.peerId, 'audio')}
+                   onMuteVideo={() => clientRef.current?.toggleMutePeer(tile.peerId, 'video')}
                  />
                ))}
              </div>
@@ -331,7 +332,7 @@ export default function RoomPage() {
                 {messages.map((m, i) => (
                   <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: m.peerId === 'You' ? 'flex-end' : 'flex-start' }}>
                     <span style={{ fontSize: 12, color: '#9ca3af', marginBottom: 4, fontWeight: 500 }}>
-                      {m.peerId === 'You' ? 'You' : `Peer ${m.peerId.slice(0, 6)}`}
+                      {m.peerId === 'You' ? 'You' : (m.name || `Peer ${m.peerId.slice(0, 6)}`)}
                     </span>
                     <div style={{ 
                       background: m.peerId === 'You' ? '#3b82f6' : '#374151', 
@@ -385,7 +386,7 @@ function groupByPeer(remoteStreams) {
     const source = s.source || 'webcam';
     const tileId = `${s.peerId}-${source}`;
     if (!map.has(tileId)) {
-      map.set(tileId, { id: tileId, peerId: s.peerId, source, audio: null, video: null, audioPaused: false, videoPaused: false });
+      map.set(tileId, { id: tileId, peerId: s.peerId, displayName: s.displayName, source, audio: null, video: null, audioPaused: false, videoPaused: false });
     }
     const tile = map.get(tileId);
     tile[s.kind] = s.stream;
@@ -420,7 +421,7 @@ function VideoTile({ label, videoRef, muted, audioPaused, videoPaused, isScreen 
   );
 }
 
-function RemoteTile({ tile, isHost, onKick, onToggleMute }) {
+function RemoteTile({ tile, isHost, onKick, onMuteAudio, onMuteVideo }) {
   const videoRef = useRef(null);
   const audioRef = useRef(null);
 
@@ -450,13 +451,26 @@ function RemoteTile({ tile, isHost, onKick, onToggleMute }) {
       <div style={{ position: 'absolute', bottom: 16, left: 16, display: 'flex', gap: 8, alignItems: 'center', zIndex: 10 }}>
         <div style={{ background: 'rgba(0,0,0,0.5)', padding: '8px 14px', borderRadius: 8, fontSize: 14, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8, backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.1)' }}>
           {tile.audioPaused && !isScreen ? <MicOff size={16} color="#ef4444" /> : !isScreen ? <Mic size={16} color="#10b981" /> : <MonitorUp size={16} color="#8b5cf6" />}
-          Peer {tile.peerId.slice(0, 6)} {isScreen ? '(Screen)' : ''}
+          {tile.displayName || `Peer ${tile.peerId.slice(0, 6)}`} {isScreen ? '(Screen)' : ''}
         </div>
         
         {isHost && !isScreen && (
           <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={onToggleMute} style={{ background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', borderRadius: 8, padding: '8px 12px', fontSize: 13, cursor: 'pointer', backdropFilter: 'blur(8px)', fontWeight: 500, transition: 'all 0.2s' }}>
-              {tile.audioPaused ? 'Unmute' : 'Mute'}
+            <button
+              onClick={onMuteAudio}
+              disabled={tile.audioPaused}
+              title={tile.audioPaused ? 'Participant is muted — only they can unmute' : 'Mute participant'}
+              style={{ background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', borderRadius: 8, padding: '8px 12px', fontSize: 13, cursor: tile.audioPaused ? 'default' : 'pointer', backdropFilter: 'blur(8px)', fontWeight: 500, transition: 'all 0.2s', opacity: tile.audioPaused ? 0.4 : 1 }}
+            >
+              {tile.audioPaused ? 'Muted' : 'Mute'}
+            </button>
+            <button
+              onClick={onMuteVideo}
+              disabled={tile.videoPaused}
+              title={tile.videoPaused ? 'Camera is off — only they can turn it on' : 'Turn off participant camera'}
+              style={{ background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', borderRadius: 8, padding: '8px 12px', fontSize: 13, cursor: tile.videoPaused ? 'default' : 'pointer', backdropFilter: 'blur(8px)', fontWeight: 500, transition: 'all 0.2s', opacity: tile.videoPaused ? 0.4 : 1 }}
+            >
+              {tile.videoPaused ? 'Cam Off' : 'Stop Cam'}
             </button>
             <button onClick={onKick} style={{ background: '#ef4444', border: '1px solid #ef4444', color: 'white', borderRadius: 8, padding: '8px 12px', fontSize: 13, cursor: 'pointer', fontWeight: 500, transition: 'all 0.2s' }}>
               Kick

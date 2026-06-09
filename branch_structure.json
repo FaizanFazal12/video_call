@@ -1,0 +1,18 @@
+{
+  "default_branch": "master",
+  "branches": [
+    "fix/local-video-selfview-and-camera-light",
+    "master",
+    "origin"
+  ],
+  "parent": {
+    "fix/local-video-selfview-and-camera-light": "master",
+    "master": null,
+    "origin": "master"
+  },
+  "order": [
+    "master",
+    "fix/local-video-selfview-and-camera-light",
+    "origin"
+  ]
+}
