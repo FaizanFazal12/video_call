@@ -30,6 +30,7 @@ export default function RoomPage() {
   const [chatText, setChatText] = useState('');
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [localScreenStream, setLocalScreenStream] = useState(null);
+  const [localStream, setLocalStream] = useState(null);
   const [isHost, setIsHost] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
   const [lobbyStatus, setLobbyStatus] = useState('none');
@@ -46,6 +47,15 @@ export default function RoomPage() {
       localScreenRef.current.srcObject = localScreenStream;
     }
   }, [localScreenStream, isScreenSharing]);
+
+  // Attach the local webcam stream once the live UI (and the <video> element) is mounted.
+  // onLocalStream fires while status is still 'connecting' (spinner showing), so the ref
+  // isn't available yet — re-attaching here on status change fixes the blank self-view.
+  useEffect(() => {
+    if (localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream;
+    }
+  }, [localStream, status]);
 
   useEffect(() => {
     if (isChatOpen) setUnreadCount(0);
@@ -65,9 +75,7 @@ export default function RoomPage() {
       roomId,
       callbacks: {
         onLocalStream: (stream) => {
-          if (localVideoRef.current) {
-            localVideoRef.current.srcObject = stream;
-          }
+          setLocalStream(stream);
         },
         onLocalScreenStream: (stream) => {
           if (!stream) {

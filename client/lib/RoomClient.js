@@ -335,14 +335,61 @@ export class RoomClient {
   async _toggleKind(kind) {
     const producer = this.producers.get(`webcam-${kind}`);
     if (!producer) return false;
+
+    // Audio: a simple producer pause/resume is enough — no device-light concern.
+    if (kind === 'audio') {
+      if (producer.paused) {
+        producer.resume();
+        await emitWithAck(this.socket, 'resumeProducer', { producerId: producer.id }).catch(()=>{});
+        return true; // now enabled
+      }
+      producer.pause();
+      await emitWithAck(this.socket, 'pauseProducer', { producerId: producer.id }).catch(()=>{});
+      return false; // now disabled
+    }
+
+    // Video: stop the camera track on mute so the OS releases the device (light off),
+    // and re-acquire a fresh track on unmute.
     if (producer.paused) {
+      // Drop any still-live track (e.g. left over from a host force-mute) so it
+      // doesn't leak / keep the light on after we swap in a fresh one.
+      producer.track?.stop();
+      // Re-acquire the camera — the light comes back on.
+      let newTrack;
+      try {
+        const newStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+        });
+        newTrack = newStream.getVideoTracks()[0];
+      } catch (err) {
+        this.callbacks.onError?.(new Error('Could not access camera: ' + err.message));
+        return false; // stay muted
+      }
+      await producer.replaceTrack({ track: newTrack }); // keeps simulcast encodings
       producer.resume();
       await emitWithAck(this.socket, 'resumeProducer', { producerId: producer.id }).catch(()=>{});
+      this._updateLocalVideoTrack(newTrack);
       return true; // now enabled
     }
+
     producer.pause();
     await emitWithAck(this.socket, 'pauseProducer', { producerId: producer.id }).catch(()=>{});
+    // Stop and drop the old track so the camera (and its light) turns off.
+    producer.track?.stop();
+    this._updateLocalVideoTrack(null);
     return false; // now disabled
+  }
+
+  // Swap the video track inside the local stream and hand the UI a fresh
+  // MediaStream reference so it re-attaches the self-view.
+  _updateLocalVideoTrack(newTrack) {
+    if (!this.localStream) return;
+    for (const t of this.localStream.getVideoTracks()) {
+      this.localStream.removeTrack(t);
+    }
+    if (newTrack) this.localStream.addTrack(newTrack);
+    this.localStream = new MediaStream(this.localStream.getTracks());
+    this.callbacks.onLocalStream?.(this.localStream);
   }
 
   leave() {
