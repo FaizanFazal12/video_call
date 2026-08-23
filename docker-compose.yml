@@ -1,0 +1,57 @@
+# MongoDB for local development.
+#
+# Matches the default MONGODB_URI in server/.env.example:
+#   mongodb://127.0.0.1:27017/videocall-mediasoup
+#
+#   docker compose up -d          start
+#   docker compose logs -f mongodb   tail logs
+#   docker compose down           stop (data survives in the named volume)
+#   docker compose down -v        stop AND delete all data
+
+services:
+  mongodb:
+    # 8.2+ is REQUIRED here, not just preferred. MongoDB 8.0 hard-refuses to
+    # start on Linux kernel 6.19 and newer (SERVER-121912) and crash-loops with
+    # "MongoDB cannot start: Linux kernel versions 6.19 and newer has a known
+    # incompatibility". This host runs kernel 7.x. Do not pin back to 8.0.
+    image: mongo:8.2
+    container_name: videocall-mongodb
+    restart: unless-stopped
+
+    # Bound to loopback on purpose. This container runs WITHOUT authentication
+    # so it matches the credential-less MONGODB_URI the app ships with, which
+    # means anyone who can reach the port owns the database. "127.0.0.1:" keeps
+    # it off the LAN — do not change it to "27017:27017" without enabling auth
+    # (see the commented block below).
+    ports:
+      - "127.0.0.1:27017:27017"
+
+    environment:
+      MONGO_INITDB_DATABASE: videocall-mediasoup
+      # To enable auth, uncomment these, then update MONGODB_URI in server/.env to:
+      #   mongodb://<user>:<pass>@127.0.0.1:27017/videocall-mediasoup?authSource=admin
+      # Note: these only take effect on a FRESH volume — run `docker compose down -v`
+      # first, or the existing unauthenticated data directory is reused as-is.
+      # MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:?set MONGO_ROOT_USER}
+      # MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?set MONGO_ROOT_PASSWORD}
+
+    volumes:
+      - mongodb-data:/data/db
+      - mongodb-config:/data/configdb
+
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  mongodb-data:
+  mongodb-config:
