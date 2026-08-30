@@ -4,6 +4,44 @@ A minimal video calling app built with **mediasoup** (SFU), **Node.js**, and **N
 
 ---
 
+## Screenshots
+
+Captured from a real two-participant call running against the local stack. Video is
+Chrome's synthetic camera source, so no real webcam footage appears in these shots.
+
+### Live call with host moderation
+
+Two participants connected through the SFU. The host sees per-participant
+**Mute**, **Stop Cam** and **Kick** controls; the room is **Locked**, so new
+arrivals wait in a lobby until admitted.
+
+![Live call with host moderation controls](docs/screenshots/01-in-call.png)
+
+### Screen sharing and in-call chat
+
+Screen share publishes as a second producer with its own tile, and the grid
+re-flows to give it priority. Chat runs over the same Socket.io channel as the
+signaling.
+
+![Screen sharing with the chat sidebar open](docs/screenshots/02-screen-share-and-chat.png)
+
+### Participant view
+
+The same call from the guest's side. Moderation controls and the room-lock badge
+are absent — host authority is enforced server-side on every privileged event,
+not just hidden in the UI.
+
+![Guest view without host controls](docs/screenshots/03-guest-view.png)
+
+### Removing a participant
+
+After the host kicks someone, their transports are closed server-side, the
+matching consumers tear down on every other peer, and the tile disappears.
+
+![Call after a participant has been removed](docs/screenshots/04-participant-removed.png)
+
+---
+
 ## Features (Production-Ready Updates)
 
 This repository has recently undergone a major transformation from a basic MVP into a high-concurrency, production-grade video platform:
